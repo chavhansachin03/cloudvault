@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in · CloudVault</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="auth-body">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <span class="brand-mark">🔒</span>
+      <span class="brand-name">CloudVault</span>
+    </div>
+    <p class="auth-tagline">Your files, encrypted before they ever leave your device.</p>
+
+    {% if registered %}
+      <div class="banner banner-success">Account created. You can sign in now.</div>
+    {% endif %}
+    {% if error %}
+      <div class="banner banner-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" class="auth-form">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" autocomplete="username" required autofocus>
+
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+
+      <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+    </form>
+
+    <p class="auth-switch">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CloudVault</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">🔒</span>
+      <span class="brand-name">CloudVault</span>
+    </div>
+
+    <div class="new-btn-wrap">
+      <button id="newBtn" class="btn btn-new">
+        <span class="plus">+</span> New
+      </button>
+      <div id="newMenu" class="dropdown-menu hidden">
+        <button class="dropdown-item" id="menuUploadFiles">📄 File upload</button>
+        <button class="dropdown-item" id="menuNewFolder">📁 New folder</button>
+      </div>
+    </div>
+
+    <nav class="side-nav">
+      <a href="{{ url_for('index') }}" class="side-nav-item active">
+        <span>💽</span> My Drive
+      </a>
+    </nav>
+
+    <div class="storage-box">
+      <div class="storage-label">Storage used</div>
+      <div class="storage-bar"><div class="storage-fill"></div></div>
+      <div class="storage-text">{{ storage_used }} · {{ file_count }} file{{ '' if file_count == 1 else 's' }}</div>
+      <div class="storage-encrypted">🔒 All files encrypted client-side</div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="topbar">
+      <form class="search-form" action="{{ url_for('index') }}" method="GET">
+        <span class="search-icon">🔍</span>
+        <input type="text" name="q" placeholder="Search CloudVault" value="{{ search_query }}">
+      </form>
+
+      <div class="topbar-right">
+        <div class="view-toggle">
+          <button id="gridViewBtn" class="view-btn active" title="Grid view">▦</button>
+          <button id="listViewBtn" class="view-btn" title="List view">☰</button>
+        </div>
+        <div class="user-chip" id="userChip">{{ username[0]|upper }}</div>
+        <div id="userMenu" class="dropdown-menu hidden user-dropdown">
+          <div class="dropdown-header">Signed in as <strong>{{ username }}</strong></div>
+          <a href="{{ url_for('logout') }}" class="dropdown-item">🚪 Sign out</a>
+        </div>
+      </div>
+    </header>
+
+    <div class="content-header">
+      {% if search_query %}
+        <h1 class="page-title">Search results for "{{ search_query }}"</h1>
+      {% else %}
+        <div class="breadcrumb">
+          <a href="{{ url_for('index') }}" class="crumb {{ 'crumb-active' if not current_folder else '' }}">My Drive</a>
+          {% for c in breadcrumb %}
+            <span class="crumb-sep">›</span>
+            <a href="{{ url_for('index', folder=c.id) }}" class="crumb {{ 'crumb-active' if loop.last else '' }}">{{ c.name }}</a>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+
+    <main id="dropZone" class="drive-area">
+      <div id="dragOverlay" class="drag-overlay hidden">
+        <div class="drag-overlay-inner">⬆️ Drop files to upload & encrypt</div>
+      </div>
+
+      {% if not folders and not files %}
+        <div class="empty-state">
+          <div class="empty-icon">🗂️</div>
+          <p>{% if search_query %}No results found.{% else %}This folder is empty. Drag files here or click “New”.{% endif %}</p>
+        </div>
+      {% endif %}
+
+      <div id="gridView" class="grid-view">
+        {% for folder in folders %}
+        <div class="card folder-card" data-type="folder" data-id="{{ folder.id }}" data-name="{{ folder.name }}">
+          <a class="card-open" href="{{ url_for('index', folder=folder.id) }}">
+            <div class="card-icon">📁</div>
+            <div class="card-name">{{ folder.name }}</div>
+          </a>
+          <button class="card-menu-btn" data-menu-target="{{ 'folder-' ~ folder.id }}">⋮</button>
+          <div class="card-menu hidden" id="menu-folder-{{ folder.id }}">
+            <button class="dropdown-item rename-folder-btn" data-id="{{ folder.id }}" data-name="{{ folder.name }}">✏️ Rename</button>
+            <form method="POST" action="{{ url_for('delete_folder', folder_id=folder.id) }}" onsubmit="return confirm('Delete this folder and everything inside it?');">
+              <button type="submit" class="dropdown-item danger">🗑️ Delete</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+
+        {% for file in files %}
+        <div class="card file-card"
+             data-type="file"
+             data-id="{{ file.id }}"
+             data-name="{{ file.original_name }}"
+             data-mime="{{ file.mime_type }}"
+             data-size="{{ human_size(file.size) }}"
+             data-date="{{ file.uploaded_at }}">
+          <div class="card-open preview-trigger">
+            <div class="card-icon file-icon"></div>
+            <div class="card-name">{{ file.original_name }}</div>
+            <div class="card-sub">{{ human_size(file.size) }}</div>
+          </div>
+          <button class="card-menu-btn" data-menu-target="file-{{ file.id }}">⋮</button>
+          <div class="card-menu hidden" id="menu-file-{{ file.id }}">
+            <button class="dropdown-item preview-trigger">👁️ Preview</button>
+            <a class="dropdown-item" href="{{ url_for('download_file', file_id=file.id) }}">⬇️ Download</a>
+            <button class="dropdown-item rename-file-btn" data-id="{{ file.id }}" data-name="{{ file.original_name }}">✏️ Rename</button>
+            <form method="POST" action="{{ url_for('delete_file', file_id=file.id) }}" onsubmit="return confirm('Delete this file?');">
+              <button type="submit" class="dropdown-item danger">🗑️ Delete</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <table id="listView" class="list-view hidden">
+        <thead>
+          <tr><th>Name</th><th>Owner</th><th>Last modified</th><th>Size</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for folder in folders %}
+          <tr class="row-item" data-type="folder" data-id="{{ folder.id }}" data-name="{{ folder.name }}">
+            <td><a class="row-open" href="{{ url_for('index', folder=folder.id) }}">📁 {{ folder.name }}</a></td>
+            <td>me</td><td>—</td><td>—</td>
+            <td>
+              <button class="card-menu-btn" data-menu-target="lf-{{ folder.id }}">⋮</button>
+              <div class="card-menu hidden" id="menu-lf-{{ folder.id }}">
+                <button class="dropdown-item rename-folder-btn" data-id="{{ folder.id }}" data-name="{{ folder.name }}">✏️ Rename</button>
+                <form method="POST" action="{{ url_for('delete_folder', folder_id=folder.id) }}" onsubmit="return confirm('Delete this folder and everything inside it?');">
+                  <button type="submit" class="dropdown-item danger">🗑️ Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% for file in files %}
+          <tr class="row-item" data-type="file" data-id="{{ file.id }}" data-name="{{ file.original_name }}" data-mime="{{ file.mime_type }}">
+            <td><span class="row-open preview-trigger">📄 {{ file.original_name }}</span></td>
+            <td>me</td>
+            <td>{{ file.uploaded_at }}</td>
+            <td>{{ human_size(file.size) }}</td>
+            <td>
+              <button class="card-menu-btn" data-menu-target="lfi-{{ file.id }}">⋮</button>
+              <div class="card-menu hidden" id="menu-lfi-{{ file.id }}">
+                <button class="dropdown-item preview-trigger">👁️ Preview</button>
+                <a class="dropdown-item" href="{{ url_for('download_file', file_id=file.id) }}">⬇️ Download</a>
+                <button class="dropdown-item rename-file-btn" data-id="{{ file.id }}" data-name="{{ file.original_name }}">✏️ Rename</button>
+                <form method="POST" action="{{ url_for('delete_file', file_id=file.id) }}" onsubmit="return confirm('Delete this file?');">
+                  <button type="submit" class="dropdown-item danger">🗑️ Delete</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </main>
+  </div>
+</div>
+
+<!-- Hidden upload form -->
+<form id="uploadForm" class="hidden">
+  <input type="file" id="fileInput" name="files" multiple>
+</form>
+<input type="hidden" id="currentFolderId" value="{{ current_folder or '' }}">
+
+<!-- New folder modal -->
+<div id="folderModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>New folder</h3>
+    <form id="folderForm" method="POST" action="{{ url_for('create_folder') }}">
+      <input type="hidden" name="parent_id" value="{{ current_folder or '' }}">
+      <input type="text" name="name" placeholder="Untitled folder" autofocus required>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-text" id="cancelFolderBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Rename modal -->
+<div id="renameModal" class="modal-overlay hidden">
+  <div class="modal">
+    <h3>Rename</h3>
+    <form id="renameForm" method="POST">
+      <input type="text" id="renameInput" name="name" required autofocus>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-text" id="cancelRenameBtn">Cancel</button>
+        <button type="submit" class="btn btn-primary">Rename</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Preview modal -->
+<div id="previewModal" class="modal-overlay hidden">
+  <div class="modal modal-preview">
+    <div class="preview-header">
+      <span id="previewTitle"></span>
+      <div class="preview-actions">
+        <a id="previewDownload" class="btn btn-text" href="#">⬇️ Download</a>
+        <button id="closePreviewBtn" class="btn btn-text">✕</button>
+      </div>
+    </div>
+    <div id="previewBody" class="preview-body"></div>
+  </div>
+</div>
+
+<!-- Upload toast -->
+<div id="uploadToast" class="upload-toast hidden">
+  <div class="upload-toast-header">
+    <span id="uploadToastTitle">Uploading & encrypting…</span>
+    <button id="closeToastBtn" class="btn btn-text">✕</button>
+  </div>
+  <div id="uploadToastList" class="upload-toast-list"></div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

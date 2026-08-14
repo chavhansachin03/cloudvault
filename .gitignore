@@ -1,0 +1,25 @@
+Gitignore
+#Python
+__pycache__/
+*.pyc
+*.pyo
+
+#database
+instance/*.db
+*.sqlite
+*.sqlite3
+
+#User uploaded/private files
+storage/*
+
+#Environment/secrets
+.env
+.env.*
+
+#Virtual environment
+venv/
+.venv/
+env/
+
+#VS Code
+.vs code/
